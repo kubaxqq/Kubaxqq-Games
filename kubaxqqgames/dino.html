@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Dino Emoji Game</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f0f0; text-align: center; margin: 0; }
+  canvas { background: #fff; display: block; margin: 20px auto; border: 2px solid #333; }
+  #shop, #leaderboard, #adminPanel { margin: 10px auto; display: inline-block; text-align: left; border: 2px solid #333; padding: 10px; background: #eee; }
+  button { margin: 2px; }
+  input { margin: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Dino Emoji Game 🦖</h1>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<div id="shop">
+  <h3>Shop</h3>
+  <div id="dinoShop"></div>
+  <div id="obstacleShop"></div>
+</div>
+
+<div id="leaderboard">
+  <h3>Leaderboard</h3>
+  Jméno: <input type="text" id="playerName" placeholder="Tvůj nick">
+  <button onclick="changePlayerName()">Uložit</button>
+  <ol id="scoresList"></ol>
+</div>
+
+<div id="adminPanel">
+  <h3>Admin Panel</h3>
+  Heslo: <input type="password" id="adminPass">
+  <button onclick="unlockAdmin()">Otevřít</button>
+  <div id="adminControls" style="display:none;">
+    <button onclick="speedUp()">Zrychlit hru</button>
+    <button onclick="resetScores()">Reset skóre</button>
+  </div>
+</div>
+
+<script>
+// ------------------- HRA -------------------
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let player = {
+    x: 50,
+    y: 350,
+    vy: 0,
+    width: 50,
+    height: 50,
+    emoji: '🦖',
+    grounded: true
+};
+
+let obstacles = [];
+let obstacleEmojis = ['🌵','🍾','🪨','🪁'];
+let dinoEmojis = ['🦖','🦕','🐉','🦎','🦖🦖','🐢','🐲','🦀','🐸'];
+let score = 0;
+let gameSpeed = 5;
+let gameInterval;
+let gamePaused = false;
+
+// ------------------- LOCKER -------------------
+let locker = JSON.parse(localStorage.getItem('locker')) || { dinos: [], obstacles: [] };
+let playerName = localStorage.getItem('playerName') || 'Player';
+
+// ------------------- SHOP -------------------
+const dinoShopDiv = document.getElementById('dinoShop');
+const obstacleShopDiv = document.getElementById('obstacleShop');
+
+function pauseGame() {
+    gamePaused = true;
+    clearInterval(gameInterval);
+}
+
+function resumeGame() {
+    if(!gamePaused) return;
+    gamePaused = false;
+    gameInterval = setInterval(updateGame, 1000/60);
+}
+
+function renderShop() {
+    dinoShopDiv.innerHTML = '<b>Dino Skins:</b><br>';
+    dinoEmojis.forEach(e => {
+        let btn = document.createElement('button');
+        btn.innerText = e;
+        btn.onclick = () => { 
+            pauseGame();
+            player.emoji = e; 
+            if(!locker.dinos.includes(e)) locker.dinos.push(e); 
+            saveLocker(); 
+        };
+        dinoShopDiv.appendChild(btn);
+    });
+
+    obstacleShopDiv.innerHTML = '<b>Obstacle Skins:</b><br>';
+    obstacleEmojis.forEach(e => {
+        let btn = document.createElement('button');
+        btn.innerText = e;
+        btn.onclick = () => { 
+            pauseGame();
+            if(!locker.obstacles.includes(e)) locker.obstacles.push(e); 
+            saveLocker(); 
+        };
+        obstacleShopDiv.appendChild(btn);
+    });
+}
+
+function saveLocker() {
+    localStorage.setItem('locker', JSON.stringify(locker));
+}
+
+// ------------------- LEADERBOARD -------------------
+function changePlayerName() {
+    pauseGame();
+    playerName = document.getElementById('playerName').value || 'Player';
+    localStorage.setItem('playerName', playerName);
+    alert('Jméno uloženo: ' + playerName);
+}
+
+function updateLeaderboard() {
+    let scores = JSON.parse(localStorage.getItem('scores')) || [];
+    scores.push({name: playerName, score: score});
+    scores.sort((a,b)=>b.score-a.score);
+    localStorage.setItem('scores', JSON.stringify(scores.slice(0,10)));
+    let list = document.getElementById('scoresList');
+    list.innerHTML = '';
+    scores.slice(0,10).forEach(s => {
+        let li = document.createElement('li');
+        li.innerText = s.name + ': ' + s.score;
+        list.appendChild(li);
+    });
+}
+
+// ------------------- ADMIN -------------------
+function unlockAdmin() {
+    pauseGame();
+    const pass = document.getElementById('adminPass').value;
+    if(pass === 'kubaxqq') {
+        document.getElementById('adminControls').style.display = 'block';
+        alert('Admin přístup povolen!');
+    } else alert('Špatné heslo!');
+}
+
+function speedUp() { gameSpeed += 2; }
+function resetScores() { localStorage.removeItem('scores'); updateLeaderboard(); }
+
+// ------------------- HERNÍ LOGIKA -------------------
+document.addEventListener('keydown', e => {
+    if(e.code === 'Space' && player.grounded && !gamePaused) {
+        player.vy = -15;
+        player.grounded = false;
+    }
+});
+
+function spawnObstacle() {
+    if(gamePaused) return;
+    let emojis = locker.obstacles.length ? locker.obstacles : obstacleEmojis;
+    let emoji = emojis[Math.floor(Math.random()*emojis.length)];
+    obstacles.push({x: canvas.width, y: 350, width: 50, height: 50, emoji});
+}
+
+function updateGame() {
+    if(gamePaused) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // player
+    player.vy += 0.7; // gravity
+    player.y += player.vy;
+    if(player.y >= 350){ player.y = 350; player.vy = 0; player.grounded = true; }
+    ctx.font = '50px Arial';
+    ctx.fillText(player.emoji, player.x, player.y+50);
+
+    // obstacles
+    obstacles.forEach((o, i) => {
+        o.x -= gameSpeed;
+        ctx.fillText(o.emoji, o.x, o.y+50);
+        // kolize
+        if(player.x < o.x+o.width && player.x+player.width > o.x &&
+           player.y < o.y+o.height && player.y+player.height > o.y) {
+            clearInterval(gameInterval);
+            alert('Game Over! Skóre: ' + score);
+            updateLeaderboard();
+            resetGame();
+        }
+        if(o.x + o.width < 0) obstacles.splice(i,1);
+    });
+
+    score++;
+    ctx.fillText('Score: ' + score, 600, 50);
+}
+
+function resetGame() {
+    score = 0;
+    obstacles = [];
+    if(!gamePaused) gameInterval = setInterval(updateGame, 1000/60);
+}
+
+// spawn překážek
+setInterval(spawnObstacle, 2000);
+renderShop();
+resetGame();
+updateLeaderboard();
+</script>
+
+</body>
+</html>

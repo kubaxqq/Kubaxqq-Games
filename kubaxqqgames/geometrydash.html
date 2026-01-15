@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Mini Geometry Dash</title>
+<style>
+    body { margin:0; font-family:sans-serif; background:#111; color:#fff; text-align:center; }
+    canvas { background:#222; display:block; margin: 20px auto; }
+    select, input { margin: 5px; padding: 5px; font-size: 16px; }
+    #adminPanel { display:none; background:#333; padding:10px; margin-top:10px; }
+    button { padding:5px 10px; margin:5px; }
+</style>
+</head>
+<body>
+<h1>Mini Geometry Dash</h1>
+
+<div>
+    <label>Jméno hráče: </label>
+    <input type="text" id="playerName" placeholder="Zadej jméno">
+</div>
+
+<div>
+    <label>Skin: </label>
+    <select id="skinSelect">
+        <option value="🟢">Zelený 🟢</option>
+        <option value="🔵">Modrý 🔵</option>
+        <option value="🔴">Červený 🔴</option>
+        <option value="🟡">Žlutý 🟡</option>
+        <option value="⚫">Černý ⚫</option>
+    </select>
+</div>
+
+<div>
+    <label>Mapa: </label>
+    <select id="mapSelect">
+        <option value="easy">Mega Lehká</option>
+        <option value="medium">Střední</option>
+        <option value="hard">Těžká</option>
+        <option value="megaHard">Mega Hard</option>
+    </select>
+</div>
+
+<canvas id="gameCanvas" width="600" height="300"></canvas>
+
+<div id="adminPanel">
+    <h3>Admin Panel</h3>
+    <button onclick="enableAutoJump()">Auto Jump</button>
+    <button onclick="resetScore()">Reset Skóre</button>
+    <button onclick="changeMap()">Změnit Mapu</button>
+    <button onclick="changeSkin()">Změnit Skin</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let player = { x:50, y:250, size:30, dy:0, gravity:0.8, jumpPower:-12, skin:'🟢' };
+let obstacles = [];
+let score = 0;
+let gameOver = false;
+let autoJump = false;
+let gameRunning = true; // kontrola pro respawn a pauzu
+
+// Vybrané hodnoty
+const skinSelect = document.getElementById('skinSelect');
+const mapSelect = document.getElementById('mapSelect');
+const playerNameInput = document.getElementById('playerName');
+
+// Admin
+let isAdmin = false;
+
+// Funkce skoku
+function jump(){ if(player.y >= canvas.height - player.size){ player.dy = player.jumpPower; } }
+
+// Zastavení hry při promptu
+function safePrompt(message){
+    gameRunning = false;
+    let result = prompt(message);
+    gameRunning = true;
+    return result;
+}
+
+// Admin přístup
+document.addEventListener('keydown', e=>{
+    if(e.key === 'a' || e.key === 'A'){
+        let pw = safePrompt('Zadej admin heslo:');
+        if(pw === 'kubaxqq'){
+            isAdmin = true;
+            document.getElementById('adminPanel').style.display = 'block';
+            alert('Admin aktivován!');
+        } else {
+            alert('Špatné heslo');
+        }
+    }
+    if(e.key === ' ' && !autoJump){
+        jump();
+    }
+});
+
+skinSelect.addEventListener('change', ()=>{ player.skin = skinSelect.value; });
+mapSelect.addEventListener('change', ()=>{ loadMap(mapSelect.value); });
+
+// Generování překážek podle mapy
+function loadMap(map){
+    obstacles = [];
+    let count = 5;
+    if(map === 'medium') count = 10;
+    if(map === 'hard') count = 15;
+    if(map === 'megaHard') count = 25;
+    for(let i=0;i<count;i++){
+        obstacles.push({x:600 + i*200, y:250, width:30, height:30});
+    }
+}
+
+// Admin funkce
+function enableAutoJump(){ autoJump = !autoJump; alert('Auto Jump: '+autoJump); }
+function resetScore(){ score=0; alert('Skóre resetováno'); }
+function changeMap(){ let m = safePrompt('Zadej mapu: easy, medium, hard, megaHard'); mapSelect.value = m; loadMap(m); }
+function changeSkin(){ let s = safePrompt('Zadej emoji pro skin'); player.skin = s; }
+
+// Respawn funkce
+function respawn(){
+    player.x = 50;
+    player.y = 250;
+    player.dy = 0;
+    score = 0;
+    gameOver = false;
+    loadMap(mapSelect.value);
+    gameLoop();
+}
+
+// Hlavní smyčka
+function gameLoop(){
+    if(!gameRunning) return; // pozastavení během promptu
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Gravitační logika
+    player.dy += player.gravity;
+    player.y += player.dy;
+    if(player.y > canvas.height - player.size){ player.y = canvas.height - player.size; player.dy=0; }
+
+    // Auto jump
+    if(autoJump && obstacles.some(ob => player.x + player.size > ob.x && player.x < ob.x + ob.width && player.y + player.size >= ob.y)){
+        jump();
+    }
+
+    // Překážky
+    for(let ob of obstacles){
+        ob.x -= 5;
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(ob.x, ob.y, ob.width, ob.height);
+
+        // Kolize
+        if(player.x < ob.x + ob.width && player.x + player.size > ob.x &&
+           player.y < ob.y + ob.height && player.y + player.size > ob.y){
+            gameOver = true;
+        }
+    }
+
+    // Hráč
+    ctx.font = player.size + 'px Arial';
+    ctx.fillText(player.skin, player.x, player.y + player.size);
+
+    // Skóre
+    score += 1;
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Skóre: '+score, 10,30);
+
+    if(gameOver){
+        setTimeout(()=>{ respawn(); }, 1000); // respawn po 1s
+    } else {
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+// Inicializace
+loadMap('easy');
+gameLoop();
+</script>
+</body>
+</html>
