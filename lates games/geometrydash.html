@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Geometry Dash – Mega Admin + Hacker</title>
+<style>
+body{
+    margin:0;
+    background:black;
+    color:#0f0;
+    text-align:center;
+    font-family:monospace;
+}
+canvas{
+    display:block;
+    margin:20px auto;
+    background:black;
+    border:2px solid #0f0;
+}
+#adminPanel{
+    display:none;
+    background:#020;
+    padding:10px;
+    border:1px solid #0f0;
+}
+button,select{
+    background:black;
+    color:#0f0;
+    border:1px solid #0f0;
+    padding:5px;
+    margin:3px;
+    cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<h1>Mini Geometry Dash ☠ MATRIX + ADMIN</h1>
+
+<select id="mapSelect"></select>
+
+<canvas id="game" width="600" height="300"></canvas>
+
+<div id="adminPanel">
+    <h3>ADMIN COMMANDS</h3>
+    <button onclick="godMode=!godMode">God</button>
+    <button onclick="noclip=!noclip">Noclip</button>
+    <button onclick="autoJump=!autoJump">AutoJump</button>
+    <button onclick="slow=!slow">Slow Motion</button>
+    <button onclick="freeze=!freeze">Freeze</button>
+    <button onclick="fly=!fly">Fly</button>
+    <button onclick="speed+=2">Speed +</button>
+    <button onclick="speed=Math.max(2,speed-2)">Speed -</button>
+    <button onclick="jumpPower-=2">Jump +</button>
+    <button onclick="jumpPower+=2">Jump -</button>
+    <button onclick="score+=1000">+1000 Score</button>
+    <button onclick="killPlayer()">Kill Player</button>
+    <button onclick="skipMap()">Skip Map</button>
+    <button onclick="resetGame()">Full Reset</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+/* Stav hry */
+let state="play"; // play | hack
+let hackFrame=0;
+let countdown=3;
+
+/* Hráč */
+let player;
+const ground = 260;
+let score=0;
+let bestScore=0;
+let speed=5;
+let jumpPower=-12;
+const gravity=0.8;
+
+/* Admin */
+let godMode=false;
+let noclip=false;
+let autoJump=false;
+let slow=false;
+let freeze=false;
+let fly=false;
+let isAdmin=false;
+
+/* MATRIX */
+const cols = Math.floor(canvas.width / 14);
+const drops = Array(cols).fill(0);
+const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+/* MAPY */
+let maps = {};
+function genMap(n,gap){
+    let arr=[], x=600;
+    for(let i=0;i<n;i++){
+        let t = i%5===0 ? "dead" : i%3===0 ? "platform" : "normal";
+        let y = t==="platform" ? ground-40 : ground;
+        arr.push({x,y,w:40,h:30,t});
+        x += gap;
+    }
+    return arr;
+}
+
+maps["map1"] = genMap(12,300);
+maps["map2"] = genMap(15,280);
+maps["map3"] = genMap(18,260);
+maps["map4"] = genMap(20,250);
+maps["map5"] = genMap(22,240);
+maps["map6"] = genMap(25,230);
+maps["map7"] = genMap(28,220);
+maps["map8"] = genMap(30,210);
+
+/* Naplnění selectu */
+const mapSelect = document.getElementById("mapSelect");
+Object.keys(maps).forEach(k=>{
+    const opt=document.createElement("option");
+    opt.value=k;
+    opt.innerText=k;
+    mapSelect.appendChild(opt);
+});
+
+function initPlayer(){
+    player={x:50,y:ground,size:30,dy:0};
+}
+
+let obstacles=[];
+
+function loadMap(name){
+    obstacles = maps[name].map(o=>({...o}));
+    initPlayer();
+    score=0;
+    state="play";
+    hackFrame=0;
+    countdown=3;
+}
+
+function jump(){if(player.y>=ground||fly) player.dy=jumpPower;}
+
+document.addEventListener("keydown",e=>{
+    if(e.key===" ") jump();
+    if(fly){
+        if(e.key==="ArrowUp") player.y-=10;
+        if(e.key==="ArrowDown") player.y+=10;
+    }
+    if(e.key==="a"||e.key==="A"){
+        let pw=prompt("Zadej admin heslo:");
+        if(pw==="kubaxqq"){
+            isAdmin=true;
+            document.getElementById("adminPanel").style.display="block";
+        }
+    }
+});
+
+mapSelect.addEventListener("change",e=>{
+    loadMap(e.target.value);
+});
+
+function killPlayer(){
+    if(state==="hack"||godMode) return;
+    bestScore=Math.max(bestScore,score);
+    state="hack";
+    hackFrame=0;
+    countdown=3;
+}
+
+function skipMap(){
+    let next = mapSelect.selectedIndex + 1;
+    if(next >= mapSelect.options.length) next=0;
+    mapSelect.selectedIndex = next;
+    loadMap(mapSelect.value);
+}
+
+function resetGame(){
+    loadMap(mapSelect.value);
+}
+
+function drawMatrix(){
+    ctx.fillStyle="rgba(0,0,0,0.3)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#0f0";
+    ctx.font="14px monospace";
+    for(let i=0;i<drops.length;i++){
+        const c = chars[Math.floor(Math.random()*chars.length)];
+        ctx.fillText(c,i*14,drops[i]*14);
+        if(drops[i]*14>canvas.height && Math.random()>0.95) drops[i]=0;
+        drops[i]++;
+    }
+}
+
+function loop(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if(state==="hack"){
+        drawMatrix();
+        ctx.fillStyle="#0f0";
+        ctx.font="20px monospace";
+        ctx.fillText("PROHRÁL SI – HACKUJU TVŮJ PC",60,120);
+        ctx.fillText("SYSTEM SE RESETUJE HAHAHA",80,150);
+        ctx.font="32px monospace";
+        ctx.fillText("RESET ZA: "+countdown,200,200);
+        hackFrame++;
+        if(hackFrame%60===0) countdown--;
+        if(countdown<0) loadMap(mapSelect.value);
+        requestAnimationFrame(loop);
+        return;
+    }
+
+    /* fyzika */
+    if(!freeze){
+        player.dy+=gravity;
+        player.y+=slow?player.dy*0.5:player.dy;
+        if(player.y>ground){player.y=ground;player.dy=0;}
+    }
+
+    /* bloky */
+    for(let o of obstacles){
+        o.x -= slow?speed*0.5:speed;
+        ctx.fillStyle=o.t==="dead"?"#f00":o.t==="platform"?"#ff0":"#0f0";
+        ctx.fillRect(o.x,o.y,o.w,o.h);
+
+        if(!noclip &&
+           player.x<o.x+o.w &&
+           player.x+player.size>o.x &&
+           player.y+player.size>o.y &&
+           player.y<o.y+o.h){
+            if(o.t==="dead") killPlayer();
+            if(o.t==="platform" && player.dy>=0){player.y=o.y-player.size;player.dy=0;}
+        }
+    }
+
+    ctx.font="30px monospace";
+    ctx.fillText("🟢",player.x,player.y+player.size);
+    score++;
+    ctx.fillText("Score: "+score,10,20);
+    ctx.fillText("Best: "+bestScore,10,40);
+
+    if(autoJump && obstacles.some(o=>o.x-player.x<60)) jump();
+
+    requestAnimationFrame(loop);
+}
+
+loadMap("map1");
+loop();
+</script>
+</body>
+</html>

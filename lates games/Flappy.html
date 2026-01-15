@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Cube Ultimate Emoji</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+html,body{margin:0;padding:0;overflow:hidden;font-family:Arial;background:#70c5ce}
+canvas{display:block}
+#ui{position:fixed;top:10px;left:10px;color:white;text-shadow:0 2px 5px black;z-index:5}
+#menu{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:5}
+#menu button{padding:6px 12px;margin:0 4px;border:none;border-radius:6px;font-weight:bold}
+#panel,#adminPanel{
+ position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+ background:#111;color:white;padding:15px;border-radius:12px;
+ z-index:20;display:none;width:90%;max-width:350px;
+ max-height:80%;overflow-y:auto
+}
+#panel h2,#adminPanel h3{text-align:center;margin:5px 0}
+.item{display:inline-block;margin:4px;padding:6px;border:2px solid white;border-radius:6px;cursor:pointer}
+.locked{opacity:0.3}
+.dev{border-color:red;color:red}
+#panel button,#adminPanel button{width:100%;margin:4px 0;padding:8px;border:none;border-radius:6px;font-weight:bold}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+<div>Player: <span id="pname"></span></div>
+<div>Score: <span id="score">0</span></div>
+<div>Record: <span id="record">0</span></div>
+<div>Coins: <span id="coins">0</span></div>
+</div>
+
+<div id="menu">
+<button onclick="openLocker()">Locker</button>
+<button onclick="openLeaderboard()">Leaderboard</button>
+<button onclick="openAdmin()">Admin</button>
+</div>
+
+<div id="panel"></div>
+<div id="adminPanel">
+<h3>ADMIN PANEL</h3>
+<button onclick="toggleGod()">God Mode</button>
+<button onclick="freezeGame()">Freeze</button>
+<button onclick="resetGame()">Reset Game</button>
+<button onclick="clearLeaderboard()">Clear Leaderboard</button>
+<button onclick="addCoins(100)">+100 Coins</button>
+<button onclick="addCoins(1000)">+1000 Coins</button>
+<button onclick="addCoins(5000)">+5000 Coins</button>
+<button onclick="toggleRainbow()">Rainbow Bird</button>
+<button onclick="setPipeSpeed(2)">Pipe Speed 2</button>
+<button onclick="setPipeSpeed(4)">Pipe Speed 4</button>
+<button onclick="setGravity(0.4)">Gravity 0.4</button>
+<button onclick="setGravity(0.8)">Gravity 0.8</button>
+<button onclick="toggleLava()">Lava ON/OFF</button>
+<button onclick="toggleTacos()">Disco Tacos ON/OFF</button>
+<button onclick="unlockDev()">Unlock DEV Items</button>
+<button onclick="equipDevHat()">Equip DEV Hat</button>
+<button onclick="equipDevFeather()">Equip DEV Feather</button>
+<button onclick="closeAdmin()">Close Panel</button>
+</div>
+
+<script>
+/* ---------- PLAYER NAME ---------- */
+let playerName=localStorage.playerName;
+if(!playerName){playerName=prompt("Zadej jméno:","Player");localStorage.playerName=playerName||"Player";}
+document.getElementById("pname").textContent=playerName;
+
+/* ---------- CANVAS ---------- */
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+window.addEventListener("resize",resize);resize();
+
+/* ---------- STATE ---------- */
+let bird={x:120,y:200,v:0,size:30,type:"square",color:"#ff0",emoji:"🐦",hat:"none",feather:"none"};
+let gravity=0.6,jump=-10;
+let pipes=[],pipeGap=280,pipeSpeed=3;
+let tacos=[],lavaHeight=40;
+let score=0,record=+localStorage.record||0,coins=+localStorage.coins||0;
+let god=false,frozen=false,rainbow=false,lava=true,discoTacos=true,paused=false,devUnlocked=false;
+
+/* ---------- INPUT ---------- */
+function flap(){if(!paused) bird.v=jump;}
+window.addEventListener("mousedown",flap);
+window.addEventListener("touchstart",e=>{e.preventDefault();flap()},{passive:false});
+window.addEventListener("keydown",e=>{
+ if(e.code==="Space") flap();
+ if(e.key.toLowerCase()==="a") openAdmin();
+});
+
+/* ---------- PIPES ---------- */
+function spawnPipe(){pipes.push({x:canvas.width,top:Math.random()*(canvas.height-400)+100,passed:false,skin:"#0a0"});}
+setInterval(spawnPipe,2500);
+
+/* ---------- GAME ---------- */
+function die(){record=Math.max(record,score);localStorage.record=record;score=0;bird.y=200;bird.v=0;pipes=[];updateUI();}
+function updateUI(){document.getElementById("score").textContent=score;
+document.getElementById("record").textContent=record;
+document.getElementById("coins").textContent=coins;}
+
+function update(){
+ if(paused || frozen) return;
+ bird.v+=gravity;bird.y+=bird.v;
+ pipes.forEach(p=>p.x-=pipeSpeed);
+ pipes=pipes.filter(p=>p.x>-80);
+ pipes.forEach(p=>{
+   if(!p.passed&&p.x<bird.x){p.passed=true;score++;coins+=100;updateUI();}
+   if(!god&&(bird.y<p.top||bird.y>p.top+pipeGap)&&p.x<bird.x+bird.size&&p.x>bird.x) die();
+ });
+ if(lava&&!god && bird.y>canvas.height-lavaHeight) die();
+}
+
+/* ---------- DRAW ---------- */
+let t=0;
+function draw(){
+ t++;
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ // pipes
+ pipes.forEach(p=>{
+   ctx.fillStyle=p.skin;
+   ctx.fillRect(p.x,0,60,p.top);
+   ctx.fillRect(p.x,p.top+pipeGap,60,canvas.height);
+ });
+ // lava
+ if(lava){ctx.fillStyle="red";ctx.fillRect(0,canvas.height-lavaHeight,canvas.width,lavaHeight);}
+ // bird
+ if(bird.type==="emoji"){
+   ctx.font = bird.size + "px Arial";
+   ctx.fillText(bird.emoji, bird.x, bird.y + bird.size);
+ } else if(bird.type==="circle"){
+   ctx.fillStyle = rainbow ? `hsl(${t%360},100%,50%)` : bird.color;
+   ctx.beginPath();
+   ctx.arc(bird.x+bird.size/2,bird.y+bird.size/2,bird.size/2,0,Math.PI*2);
+   ctx.fill();
+ } else { // square
+   ctx.fillStyle = rainbow ? `hsl(${t%360},100%,50%)` : bird.color;
+   ctx.fillRect(bird.x,bird.y,bird.size,bird.size);
+ }
+}
+function loop(){update();draw();requestAnimationFrame(loop);}loop();
+
+/* ---------- LOCKER ---------- */
+const panel=document.getElementById("panel");
+function openLocker(){
+  paused=true;
+  panel.style.display="block";
+  let html="<h2>LOCKER</h2>";
+  html += "<h3>Vyber barvu</h3>";
+  ["#ff0","#0ff","#f0f","#f00","#0f0"].forEach(c=>{
+    html+=`<div class="item" onclick="bird.color='${c}';bird.type='square';bird.emoji=''">${c}</div>`;
+  });
+  html += "<h3>Vyber tvar</h3>";
+  ["square","circle","emoji"].forEach(t=>{
+    html+=`<div class="item" onclick="bird.type='${t}'">${t}</div>`;
+  });
+  html += "<h3>Vyber emoji</h3>";
+  ["🐦","🦄","😎","🔥"].forEach(e=>{
+    html+=`<div class="item" onclick="bird.emoji='${e}';bird.type='emoji'">${e}</div>`;
+  });
+  ["none","cap","devhat"].forEach(h=>{
+    html+=`<div class="item${h==='devhat'&&!devUnlocked?' locked dev':''}" onclick="if('${h}'!=='devhat'||devUnlocked)bird.hat='${h}'">${h}</div>`;
+  });
+  ["#0a0","#a00","#00a"].forEach(skin=>{
+    html+=`<div class="item" onclick="setPipeSkin('${skin}')">Pipe ${skin}</div>`;
+  });
+  html+='<br><button onclick="closePanel()">Close</button>';
+  panel.innerHTML=html;
+}
+function closePanel(){panel.style.display="none"; paused=false;}
+function setPipeSkin(s){pipes.forEach(p=>p.skin=s);}
+
+/* ---------- LEADERBOARD ---------- */
+function openLeaderboard(){
+  paused=true;
+  let lb=JSON.parse(localStorage.lb||"[]");
+  lb.push({name:playerName,score:record});
+  lb.sort((a,b)=>b.score-a.score);
+  localStorage.lb=JSON.stringify(lb.slice(0,100));
+  let html="<h2>TOP 100</h2>"+lb.map((e,i)=>`${i+1}. ${e.name} – ${e.score}`).join("<br>");
+  html+='<br><button onclick="closePanel()">Close</button>';
+  panel.style.display="block";panel.innerHTML=html;
+}
+
+/* ---------- ADMIN ---------- */
+const adminPanel=document.getElementById("adminPanel");
+function openAdmin(){let p=prompt("Password:");if(p==="kubaxqq"){paused=true;adminPanel.style.display="block";}}
+function closeAdmin(){adminPanel.style.display="none"; paused=false;}
+function toggleGod(){god=!god;}
+function freezeGame(){frozen=!frozen;}
+function resetGame(){score=0;coins=0;record=0;bird.y=200;bird.v=0;pipes=[];localStorage.clear();updateUI();}
+function clearLeaderboard(){localStorage.lb="[]";}
+function addCoins(n){coins+=n;localStorage.coins=coins;updateUI();}
+function toggleRainbow(){rainbow=!rainbow;}
+function setPipeSpeed(n){pipeSpeed=n;}
+function setGravity(g){gravity=g;}
+function toggleLava(){lava=!lava;}
+function toggleTacos(){discoTacos=!discoTacos;}
+function unlockDev(){devUnlocked=true;}
+function equipDevHat(){if(devUnlocked)bird.hat="devhat";}
+function equipDevFeather(){if(devUnlocked)bird.feather="devfeather";}
+</script>
+</body>
+</html>
